@@ -1,0 +1,443 @@
+------------------RPC------------------
+Message.java
+import java.io.Serializable; 
+public class Message implements Serializable{ 
+    private String method; 
+    private int arg1; 
+    private int arg2; 
+    private int result;
+
+    public Message(int arg1, int arg2, String method){ 
+        this.arg1 = arg1; 
+        this.arg2 = arg2; 
+        this.method = method; 
+    } 
+
+    public String getMethod(){return method;} 
+    public int getArg1(){return arg1;} 
+    public int getArg2(){return arg2;} 
+    public int getResult(){return result;} 
+    public void setResult(int result){this.result = result;} 
+}
+
+RPCClient.java
+import java.io.*;
+import java.net.*;
+
+public class RPCClient { 
+    public static void main(String[] args) { 
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in)); 
+        try { 
+            System.out.print("Enter first number: "); 
+            int num1 = Integer.parseInt(reader.readLine()); 
+            System.out.print("Enter second number: "); 
+            int num2 = Integer.parseInt(reader.readLine()); 
+ 
+ 
+            int addResult = add(num1, num2); 
+            System.out.println("Addition Result: " + addResult); 
+ 
+            int subResult = sub(num1, num2); 
+            System.out.println("Subtraction Result: " + subResult); 
+ 
+            int multResult = mult(num1, num2); 
+            System.out.println("Multiplication Result: " + multResult); 
+ 
+            int divResult = divide(num1, num2); 
+            System.out.println("Division Result: " + divResult); 
+        } catch (Exception e) { 
+            System.out.println(e); 
+        } 
+    } 
+ 
+    static int clientStub(int arg1, int arg2, String method)throws Exception{ 
+        Socket s = new Socket("localhost", 6666); 
+        ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream()); 
+        ObjectInputStream in = new ObjectInputStream(s.getInputStream()); 
+
+        Message RPCRequest = new Message(arg1, arg2, method); 
+ 
+        out.writeObject(RPCRequest); 
+ 
+        out.flush(); 
+ 
+        Message RPCResponse = (Message) in.readObject(); 
+        in.close(); 
+        out.close(); 
+        s.close(); 
+ 
+        return RPCResponse.getResult(); 
+    } 
+ 
+    static int add(int arg1, int arg2) throws Exception{  
+        int result = clientStub(arg1, arg2, "add"); 
+        return result; 
+    } 
+ 
+    static int sub(int arg1, int arg2) throws Exception {  
+        int result = clientStub(arg1, arg2, "sub"); 
+        return result;
+    } 
+    
+    static int mult(int arg1, int arg2) throws Exception {  
+        int result = clientStub(arg1, arg2, "mult");   
+        return result; 
+    } 
+    static int divide(int arg1, int arg2) throws Exception {  
+        int result = clientStub(arg1, arg2, "div");   
+        return result; 
+    } 
+}
+
+RPCServer.java
+import java.io.*;
+import java.net.*;
+
+public class RPCServer {
+    public static void main(String[] args) {
+        try (ServerSocket ss = new ServerSocket(6666)) {
+            System.out.println("Listening");
+            while (true) {
+                Socket s = ss.accept();
+                serverStub(s);
+                s.close();
+            }
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+
+    static void serverStub(Socket s) throws Exception {
+        ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+        ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+
+        Message RPCRequest = (Message) in.readObject();
+
+        String method = RPCRequest.getMethod();
+        int arg1 = RPCRequest.getArg1();
+        int arg2 = RPCRequest.getArg2();
+        int result;
+
+        switch (method) {
+            case "add":
+                result = add(arg1, arg2);
+                break;
+            case "sub":
+                result = subtract(arg1, arg2);
+                break;
+            case "mult":
+                result = multiply(arg1, arg2);
+                break;
+            case "div":
+                result = divide(arg1, arg2);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown method: " + method);
+        }
+
+        RPCRequest.setResult(result);
+        out.writeObject(RPCRequest);
+        out.flush();
+    }
+
+    static int add(int a, int b) {
+        System.out.println("Received add request from client: " + a + " + " + b);
+        return a + b;
+    }
+
+    static int subtract(int a, int b) {
+        System.out.println("Received subtract request from client: " + a + " - " + b);
+        return a - b;
+    }
+
+    static int multiply(int a, int b) {
+        System.out.println("Received multiply request from client: " + a + " * " + b);
+        return a * b;
+    }
+
+    static int divide(int a, int b) {
+        System.out.println("Received divide request from client: " + a + " / " + b);
+        return a / b;
+    }
+}
+
+
+
+----------------------RMI---------------------------
+Calculator.java
+import java.rmi.server.UnicastRemoteObject;
+import java.rmi.RemoteException;
+import java.rmi.registry.*;
+
+public class Calculator extends UnicastRemoteObject implements ICalculator {
+    public Calculator() throws RemoteException {
+        super();
+    }
+
+    public int add(int a, int b) throws RemoteException {
+        System.out.println("Received add request from client: " + a + " + " + b);
+        return a + b;
+    }
+
+    public int subtract(int a, int b) throws RemoteException {
+        System.out.println("Received subtract request from client: " + a + " - " + b);
+        return a - b;
+    }
+
+    public int multiply(int a, int b) throws RemoteException {
+        System.out.println("Received multiply request from client: " + a + " * " + b);
+        return a * b;
+    }
+
+    public double divide(int a, int b) throws RemoteException {
+        System.out.println("Received divide request from client: " + a + " / " + b);
+        return (double) a / b;
+    }
+
+    public static void main(String[] args) {
+        try {
+            Calculator calculator = new Calculator();
+            // Create an RMI registry (use default port 1099)
+            Registry registry = LocateRegistry.createRegistry(1099);
+            // Bind the remote object (calculator) to the RMI registry
+            registry.rebind("CalculatorService", calculator);
+            System.out.println("Calculator server ready");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+CalculatorClient.java
+import java.rmi.registry.*;
+import java.util.Scanner;
+
+public class CalculatorClient {
+
+    public static void main(String[] args) {
+        try (Scanner scanner = new Scanner(System.in);){
+            Registry registry = LocateRegistry.getRegistry("localhost", 1099);
+
+            ICalculator calculator = (ICalculator) registry.lookup("CalculatorService");
+
+            System.out.print("Enter first number: ");
+            int num1 = scanner.nextInt();
+            System.out.print("Enter second number: ");
+            int num2 = scanner.nextInt();
+
+            int sum = calculator.add(num1, num2);
+            int difference = calculator.subtract(num1, num2);
+            int product = calculator.multiply(num1, num2);
+            double quotient = calculator.divide(num1, num2);
+
+            System.out.println("Addition: " + sum);
+            System.out.println("Subtraction: " + difference);
+            System.out.println("Multiplication: " + product);
+            System.out.println("Division: " + quotient);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+ICalculator.java
+import java.rmi.*;
+
+public interface ICalculator extends Remote {
+    // Remote method to add two numbers
+    public int add(int a, int b) throws RemoteException;
+
+    // Remote method to subtract two numbers
+    public int subtract(int a, int b) throws RemoteException;
+
+    // Remote method to multiply two numbers
+    public int multiply(int a, int b) throws RemoteException;
+
+    // Remote method to divide two numbers
+    public double divide(int a, int b) throws RemoteException;
+}
+
+
+-----------------------------DSM----------------------------
+SharedMemoryClient.java
+import java.io.*;
+import java.net.*;
+import java.util.Scanner;
+
+public class SharedMemoryClient {
+    public static void main(String[] args) {
+        try (Socket socket = new Socket("localhost", 5000);
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                Scanner scanner = new Scanner(System.in)) {
+
+            System.out.println(in.readLine());
+
+            String command;
+            while (true) {
+                System.out.print("Enter Command (get/set <value>/exit): ");
+                command = scanner.nextLine();
+                out.println(command);
+
+                if (command.equalsIgnoreCase("exit")) {
+                    System.out.println("Disconnecting...");
+                    break;
+                }
+                System.out.println(in.readLine());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+SharedMemoryServer.java
+import java.io.*;
+import java.net.*;
+import java.util.concurrent.locks.*;
+
+public class SharedMemoryServer {
+    private static int sharedVariable = 50;
+    private static final Lock lock = new ReentrantLock();
+
+    public static void main(String[] args) {
+        try (ServerSocket serverSocket = new ServerSocket(5000)) {
+            System.out.println("SharedMemoryServer started on port 5000...");
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New Client connected.");
+                new ClientHandler(clientSocket).start();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static class ClientHandler extends Thread {
+        private Socket socket;
+
+        public ClientHandler(Socket socket) {
+            this.socket = socket;
+        }
+
+        public void run() { 
+            try ( 
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream())); 
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true) 
+            ) { 
+                out.println("Connected to SharedMemoryServer. Type 'exit' to quit."); 
+ 
+                String command; 
+                while ((command = in.readLine()) != null) { 
+                    if (command.equalsIgnoreCase("get")) { 
+                        lock.lock(); 
+                        out.println("Accessed Shared Variable: " + sharedVariable); 
+                        lock.unlock(); 
+                    } else if (command.startsWith("set")) { 
+                        int newValue = Integer.parseInt(command.split(" ")[1]); 
+                        lock.lock(); 
+                        sharedVariable = newValue; 
+                        lock.unlock(); 
+                        out.println("Updated Shared Variable: " + sharedVariable); 
+                    } else if (command.equalsIgnoreCase("exit")) { 
+                        System.out.println("Client disconnected: ");
+                        break; 
+                    } else { 
+                        out.println("Invalid Command"); 
+                    } 
+                } 
+            } catch (IOException e) { 
+                e.printStackTrace(); 
+            }
+        }
+    }
+}
+
+
+
+-------------------------------CORBA---------------------------------
+1.idlj -fall Hello.idl
+2.javac HelloApp/*.java *.java
+3.java HelloServer
+4.java HelloClient
+
+Hello.idl
+module HelloApp {
+    interface Hello {
+        string sayHello();
+    };
+};
+
+HelloClient.java
+import HelloApp.*;
+import org.omg.CORBA.*;
+import java.io.*;
+
+public class HelloClient {
+    public static void main(String args[]) {
+        try {
+            // Create and initialize ORB
+            ORB orb = ORB.init(args, null);
+
+            // Read the object reference from the file
+            String ior;
+            try (BufferedReader br = new BufferedReader(new FileReader("HelloIOR"))) {
+                ior = br.readLine();
+            }
+
+            // Convert string to CORBA object
+            Hello helloRef = HelloHelper.narrow(orb.string_to_object(ior));
+
+            // Invoke remote method
+            System.out.println("Response from server: " + helloRef.sayHello());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+HelloServer.java
+import HelloApp.*;
+import org.omg.CORBA.*;
+import org.omg.PortableServer.*;
+import java.io.*;
+
+class HelloImpl extends HelloPOA {
+    @Override
+    public String sayHello() {
+        return "Hello, CORBA!";
+    }
+}
+
+public class HelloServer {
+    public static void main(String args[]) {
+        try {
+            // Create and initialize ORB
+            ORB orb = ORB.init(args, null);
+
+            // Get reference to root POA and activate the POA manager
+            POA rootpoa = POAHelper.narrow(orb.resolve_initial_references("RootPOA"));
+            rootpoa.the_POAManager().activate();
+
+            // Create the servant object
+            HelloImpl helloImpl = new HelloImpl();
+
+            // Get object reference
+            Hello href = HelloHelper.narrow(rootpoa.servant_to_reference(helloImpl));
+
+            // Save object reference in a file
+            try (FileWriter file = new FileWriter("HelloIOR")) {
+                file.write(orb.object_to_string(href));
+            }
+
+            System.out.println("CORBA Server is running...");
+
+            // Run ORB event loop
+            orb.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
